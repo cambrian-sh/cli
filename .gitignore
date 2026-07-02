@@ -1,0 +1,9 @@
+# Override root *.ts ignore — we need these tracked
+!*.ts
+!*.tsx
+
+# Generated / build output
+node_modules/
+dist/
+generated/
+src/proto-embed.ts
