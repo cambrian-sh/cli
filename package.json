@@ -1,0 +1,31 @@
+{
+  "name": "cambrian-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "proto:gen": "bun run scripts/embed-proto.ts && pbjs -t static-module -w es6 -o generated/cambrian.js proto/cambrian.proto && pbts -o generated/cambrian.d.ts generated/cambrian.js",
+    "build": "bun build src/index.tsx --outdir dist --target node --external react-devtools-core",
+    "build:bin": "bun build src/index.tsx --compile --target node --external react-devtools-core --outfile dist/cambrian",
+    "dev": "bun run --hot src/index.tsx",
+    "start": "bun dist/index.js",
+    "test": "bun test",
+    "test:smoke": "./scripts/test-cli.sh"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
+    "ink": "^7.0.5",
+    "ink-text-input": "^6.0.0",
+    "protobufjs": "^8.6.1",
+    "react": "^19.2.0",
+    "yargs": "^18.0.0"
+  },
+  "devDependencies": {
+    "protobufjs-cli": "^2.5.2",
+    "@types/react": "^19.2.0",
+    "typescript": "^6.0.3",
+    "bun-types": "^1.3.0"
+  }
+}
