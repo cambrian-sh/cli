@@ -1,10 +1,18 @@
-# HANDOFF — Cambrian CLI
+# HANDOFF — Cambrian CLI (next session)
 
-> Read this first if you are a fresh agent (or future-me) picking up this repo cold. It tells you where the work is, what's done, what's pending, and what to be careful about.
+> Read this first if you are a fresh agent (or future-me) picking up this repo cold. This is the authoritative "where we are" document. The plan is in `docs/plans/cli-initiative.md`, the locked decisions are in `docs/adr/CLI-001..CLI-010`, the tickets are in `docs/issues/`.
+
+## TL;DR for the next agent
+
+**Done:** operator-plane adoption (Phase 1), audit read surface — `list|show|export` (Phase 6 cli-62), full auth model with OS keychain (Phase 8).
+
+**My pick for next:** **Phase 9 — Test infrastructure & CI** (`docs/issues/phase-9-test-infrastructure.md` and the 6 tickets `cli-90..cli-95`). Without it, every gRPC success path is unverified; with it, every future phase lands on a CI-verified baseline. The 6 tickets are atomic and self-contained — pick the first one (`cli-90` mock gRPC server harness) and the rest will follow naturally.
+
+**After Phase 9:** Phase 2 (Distribution: `bun build --compile`, GitHub Actions release, `install.sh`).
 
 ## What this repo is
 
-The standalone CLI/TUI for the **Cambrian orchestrator**. It has migrated out of `cambrian-runtime` (the kernel repo) into its own repository. The kernel stays in `cambrian-runtime`; this repo is the user-facing admin companion + installer.
+The standalone CLI/TUI for the **Cambrian orchestrator**. It migrated out of `cambrian-runtime` (the kernel repo) into its own repository on 2026-07-02. The kernel stays in `cambrian-runtime`; this repo is the user-facing admin companion + installer.
 
 **Stack:** TypeScript 6 + Ink v7 + React 19 + Bun. gRPC via `@grpc/grpc-js` with embedded proto.
 
@@ -33,9 +41,12 @@ The full **47-commit** history of the `cli/` subtree lives on `cambrian-runtime`
 
 To read the older 38 commits: `cd /home/doruk/Code/cambrian-runtime && git log -- cli/`
 
-## Locked decisions (D1–D12, see `docs/plans/cli-initiative.md`)
+**Commits in this repo (as of 2026-07-02):**
+- `60e91df` — `docs: rewrite README for V1 GitHub ship-readiness`
+- `0580c9f` — `docs: add Apache 2.0 license`
+- `0b4a248` — `Initial commit: Cambrian CLI (migrated from cambrian-runtime)`
 
-The 12 decisions that frame all implementation:
+## Locked decisions (D1–D12, see `docs/plans/cli-initiative.md`)
 
 - **D1** Operator-plane adoption (CLI uses `OperatorConsole` for operator concerns; `Orchestrator` for agent-plane reads).
 - **D2** Auth model: `cambrian login` (interactive) + `--token` (one-shot) + `CAMBRIAN_TOKEN` (env) + OS keychain (persisted). Precedence: `--token` > env > keychain.
@@ -60,7 +71,7 @@ The 12 decisions that frame all implementation:
 - HITL migrated from `WatchApprovals`/`SubmitApprovalDecision` to `StreamEvents`+`ResolveHITL`.
 - Help text updated with new subcommands and global flags.
 
-**Phase 6 (audit):**
+**Phase 6 (audit, cli-62 only — cli-60 and cli-61 still TODO):**
 - `cambrian audit list [--json] [--actor N] [--action V] [--target-type T] [--target-id ID] [--limit N]`
 - `cambrian audit show <command_id>`
 - `cambrian audit export [--format json|csv|ndjson] [--output PATH] [--reason TEXT] [--force]`
@@ -68,7 +79,7 @@ The 12 decisions that frame all implementation:
 - 0600 file mode for export; refuses to overwrite without `--force`.
 - `cambrian audit export` requires `--reason` (data exfiltration guard).
 
-**Phase 8 (auth model):**
+**Phase 8 (auth model, all tickets done):**
 - `cambrian login [--username U --password P]` — stores `{token, role, username, expiresAt}` in OS keychain per server.
 - `cambrian logout` — clears keychain entry.
 - `cambrian whoami` — shows server, source, user, role, expiry (never echoes the token).
@@ -76,17 +87,19 @@ The 12 decisions that frame all implementation:
 - Role-gating: `approve` / `deny` are denied at dispatch when role is `viewer`. Viewer help filters mutating subcommands.
 - `warnIfExpiringSoon(auth)` — warns to stderr when token expires within 7 days, once per process.
 
-## What's pending (in plan order)
+## What's pending (in priority order, per locked plan)
 
-| Phase | Description | Why it's next |
-|---|---|---|
-| **2** | Distribution: `bun build --compile`, GitHub Actions, `install.sh` | Unblocks sharing the CLI. The install script is the first impression. |
-| **3** | Runtime install: Postgres, pgvector, DB migrations, config gen, Ollama auto-install | What the install script does. Depends on Phase 2 binary. |
-| **4** | Service management: systemd user unit + launchd plist; `cambrian start|stop|restart|status|logs` | Post-install lifecycle. |
-| **5** | Onboarding wizard rewrite (5 → 8 steps) | First-run UX. |
-| **7** | Polish: `cambrian uninstall`, `cambrian update`, shell completions (zsh/bash/fish) | Small scope, ships with V1. |
+| # | Phase | Description | Why |
+|---|---|---|---|
+| 1 | **Phase 9** | Test infrastructure & CI (cli-90..95) | Closes the "success paths unverified" gap. Foundation for every future phase. |
+| 2 | Phase 2 | Distribution: `bun build --compile`, GitHub Actions release, `install.sh` | Unblocks sharing the CLI. The install script is the first impression. |
+| 3 | Phase 3 | Runtime install: Postgres, pgvector, DB migrations, config gen, Ollama auto-install | What the install script does. Depends on Phase 2 binary. |
+| 4 | Phase 4 | Service management: systemd user unit + launchd plist; `cambrian start|stop|restart|status|logs` | Post-install lifecycle. |
+| 5 | Phase 5 | Onboarding wizard rewrite (5 → 8 steps) | First-run UX. |
+| 6 | Phase 6 (partial) | TUI subscribes to `StreamEvents` (cli-60), Snapshot+resync state machine (cli-61) | Remaining Phase 6 work. |
+| 7 | Phase 7 | Polish: `cambrian uninstall`, `cambrian update`, shell completions (zsh/bash/fish) | Small scope, ships with V1. |
 
-**My pick when asked "what next":** **Phase 2 (Distribution).** It's bounded infrastructure, gates the rest, and the user flagged `install.sh` as a priority.
+**Phase 9 is the immediate next.** The 6 tickets are atomic and self-contained. Start with `cli-90` (mock gRPC server harness) — the rest build on it.
 
 ## Architectural rules (non-negotiable)
 
@@ -102,30 +115,30 @@ These are honest limitations, not bugs:
 1. **Windows keychain (DPAPI)** is implemented but **only path-encoding is unit-tested on Linux**. The actual PowerShell + DPAPI round-trip only runs on Windows. Smoke-test on a Windows box before claiming V1.
 2. **`QueryAudit` filter gap.** The ADR-CLI-010's aspirational `--since`/`--until`/`--session` filters do not exist in the actual `QueryAuditRequest` shape (`actor, target_type, target_id, action_type, limit`). Time-range and session-id filtering would need a kernel-side change. Documented in commit `23baf9c3`.
 3. **TUI dashboard is unverified.** Ink v7 requires raw mode; no headless test exists in the project. The 4-pane layout (`Approvals | Tools/Watches/Skills`) is a UI guess; test it in a real terminal before shipping.
-4. **No live kernel testing in this session.** The smoke tests verify routing, error display, and flag parsing — they match on `gRPC error` / `UNAVAILABLE` since no kernel is running. The end-to-end success paths (login → audit list → resolveHITL) need a real orchestrator.
-5. **The 13 noise files in `cambrian-runtime/cli/` from other sessions** (`errors.ts`, `tui/App.tsx`, etc.) are uncommitted and untouched. They are not part of this migration; whoever modified them owns them.
+4. **No live kernel testing in this session.** The smoke tests verify routing, error display, and flag parsing — they match on `gRPC error` / `UNAVAILABLE` since no kernel is running. The end-to-end success paths (login → audit list → resolveHITL) need a real orchestrator. **Phase 9 (cli-90 mock gRPC server) closes this gap.**
+5. **`CONTEXT.md` is pre-Phase-1** at the repo root. It still describes the CLI as "lightweight admin companion." The HANDOFF.md (this file) and the locked plan in `docs/plans/cli-initiative.md` are the up-to-date sources. Rewrite `CONTEXT.md` at some point — flagged as an open question in HANDOFF.md (was).
 
 ## Verification (run after every change)
 
 ```bash
 cd ~/Code/cambrian/cli
 node_modules/.bin/tsc --noEmit       # must be clean
-bun test                              # 81/81 (last verified)
-./scripts/test-cli.sh                 # 59/59 (last verified)
-bun run build                         # must produce dist/
+bun test                              # 81/81 unit (Phase 9 will add ≥ 30 integration = ≥ 111 total)
+./scripts/test-cli.sh                 # 59/59 smoke
+bun run build                         # must produce dist/index.js
 ```
 
-Last verified: 2026-07-02, branch `main` (this repo, fresh init).
-Historical verification (cambrian-runtime `feature/ui`, `23baf9c3`): tsc 0 errors, 81/81 unit, 59/59 smoke.
+Last verified: 2026-07-02, branch `main` (this repo, fresh init, 3 commits).
+Test counts: **81 unit pass / 59 smoke pass / tsc 0 errors**.
 
 ## File map (where things live in this repo)
 
 ```
-cli/                           <- this repo's root
+cambrian-cli/                         <- this repo's root
 ├── src/
 │   ├── index.tsx              # arg routing, subcommand dispatch, all handle*() fns
 │   ├── cambrian-types.ts      # hand-written TS interfaces matching both protos
-│   ├── proto-embed.ts         # GENERATED, gitignored (proto-embed.ts is regenerated)
+│   ├── proto-embed.ts         # GENERATED, gitignored (regenerated by `bun run proto:gen`)
 │   ├── config.ts              # Config load/save (XDG + local), env-var precedence
 │   ├── errors.ts              # gRPC status code → human-readable mapping
 │   ├── auth.ts                # login/logout/whoami/resolveToken/resolveAuth/isMutatingRole/warnIfExpiringSoon
@@ -148,34 +161,43 @@ cli/                           <- this repo's root
 │       ├── client-tag.ts      # "cambrian-cli/<version>" x-client-tag header
 │       └── keychain.ts        # OS keychain abstraction (darwin/linux/win32/memory)
 ├── proto/
-│   ├── cambrian.proto         # agent-plane (existing)
+│   ├── cambrian.proto         # agent-plane (vendored)
 │   └── operator.proto         # VENDORED from cambrian-runtime/api/proto/operator.proto @ contract 0047
 ├── scripts/
 │   ├── embed-proto.ts         # regenerates src/proto-embed.ts (embeds BOTH protos)
 │   └── test-cli.sh            # 59 smoke tests
-├── docs/                      # architecture + product + plan (was gitignored in cambrian-runtime)
+├── docs/                      # architecture + product + plan
 │   ├── adr/CLI-001..CLI-010.md
 │   ├── requirements/cli-prd.md
-│   ├── issues/INDEX.md + cli-10..cli-15
+│   ├── issues/
+│   │   ├── INDEX.md                                # ticket index, all phases
+│   │   ├── phase-9-test-infrastructure.md          # Phase 9 overview
+│   │   ├── cli-10..cli-15-*.md                     # Phase 1 tickets (DONE)
+│   │   ├── cli-90-mock-grpc-server-harness.md      # Phase 9 ticket 1
+│   │   ├── cli-91-integration-tests-operator-auth.md
+│   │   ├── cli-92-integration-tests-audit.md
+│   │   ├── cli-93-integration-tests-hitl.md
+│   │   ├── cli-94-github-actions-ci.md
+│   │   └── cli-95-coverage-reporting.md
 │   └── plans/cli-initiative.md
+├── .github/                    # NOT YET CREATED — Phase 9 cli-94 will add workflows/ci.yml
 ├── package.json
 ├── tsconfig.json
 ├── bunfig.toml
 ├── bun.lock
 ├── .gitignore
-├── README.md
-├── CONTEXT.md                 # pre-migration CLI context (will need refresh)
-├── PLAN.md                    # original brainstorm
-└── HANDOFF.md                 # this file
+├── README.md                   # ship-ready, 350 lines
+├── CONTEXT.md                  # pre-Phase-1 — needs rewrite (open question below)
+├── PLAN.md                     # original brainstorm
+├── LICENSE                     # Apache 2.0
+└── HANDOFF.md                  # this file
 ```
 
 ## Open question for the next session
 
-> The `cli/CONTEXT.md` at the repo root is the **pre-Phase-1** context — it describes the CLI as "lightweight admin companion," not the installable full-stack CLI per the locked plan. It needs a rewrite to reflect the new scope: operator-plane adoption, install script, service management, etc.
+> The `CONTEXT.md` at the repo root is the **pre-Phase-1** context — it describes the CLI as "lightweight admin companion," not the installable full-stack CLI per the locked plan. The README and this HANDOFF.md reflect the new scope. Rewrite `CONTEXT.md` to match — or delete it and rely on HANDOFF.md.
 
-If you pick up Phase 2 next, you should also rewrite `CONTEXT.md` as part of the work. Do not let the old description mislead a new agent.
-
-## Commit discipline
+## Commit discipline (carry from cambrian-runtime)
 
 - One logical change per commit, clear imperative-mood message.
 - Body explains *why*, not *what*.

@@ -238,7 +238,35 @@ Or alternatively: `docs/issues/adr54/` (if the CLI initiative is one mega-ADR). 
 - `cli-71-update.md` — `cambrian update` — fetch latest binary, replace, restart.
 - `cli-72-shell-completions.md` — Bash, zsh, fish, PowerShell completions.
 
-**Roughly 30 tickets across 7 phases.** Phases 0–2 unblock everything else. Phases 3–4 deliver the vision. Phases 5–7 are polish.
+### Phase 8 — Auth model (added after Phase 0–7 were locked; see `docs/adr/CLI-002`)
+
+- `cli-80` `cambrian login` + keychain store (macOS Keychain / Linux Secret Service / Windows DPAPI).
+- `cli-81` `cambrian whoami` + role reflection.
+- `cli-82` `--token` / `CAMBRIAN_TOKEN` one-shot precedence.
+- `cli-83` Hide mutating subcommands from Viewer role.
+- `cli-84` Windows DPAPI backend (added in `341faa76` after audit: path-only unit-tested on Linux, real round-trip only runs on Windows).
+- `cli-85` Viewer help-text filter + 7-day expiry warning (added in `341faa76`).
+
+**Status (Phase 8):** all tickets DONE as of commit `341faa76` + `7043dc15` + `0b5ad9c4`. Acceptance criteria in `docs/adr/CLI-002-auth-model.md` are 10/12 met; the 2 partial (Windows keychain write, viewer help text) were completed in `341faa76`. All 12 met.
+
+### Phase 9 — Test infrastructure & CI (added 2026-07-02)
+
+This phase is **the next one to do**, before Phase 2 (Distribution). Rationale: Phases 1, 6, 8 produced code that is unit-tested for parsing, formatting, and error display. The success paths of every gRPC call (`OperatorConsole.Login`, `ResolveHITL`, `QueryAudit`, `StreamEvents`) are not yet verified. A mock gRPC server that replays scripted responses per RPC is the standard fix, and CI on every PR makes regression impossible.
+
+- `cli-90` — Mock gRPC server harness (`src/grpc/test-harness.ts`): in-process server using the embedded protos, scripted responses, error injection, server-streaming, metadata recording.
+- `cli-91` — Integration tests for operator auth (login, whoami, role-gate, expiry warning).
+- `cli-92` — Integration tests for audit (list, show, export, all formats, file mode 0600, overwrite-refusal).
+- `cli-93` — Integration tests for HITL (approve, deny, approve list, idempotent retries, stream reconnect).
+- `cli-94` — GitHub Actions CI workflow (matrix macOS + Linux; Windows for DPAPI).
+- `cli-95` — Coverage reporting (Bun's built-in, `bun test --coverage`).
+
+**Detailed ticket files:** `docs/issues/cli-90-…` through `docs/issues/cli-95-…`. **Phase overview:** `docs/issues/phase-9-test-infrastructure.md`. **Estimated effort:** 2 weeks.
+
+**Why Phase 9 before Phase 2:** the distribution binary (Phase 2) needs the existing code to be tested end-to-end. Shipping an untested binary is how V1 ships with a "login doesn't work on macOS Sonoma" bug. Phase 9 makes the existing code actually verified, then Phase 2 ships it.
+
+---
+
+**Ticket counts:** 5 (Phase 0) + 6 (Phase 1) + 3 (Phase 2) + 7 (Phase 3) + 4 (Phase 4) + 3 (Phase 5) + 3 (Phase 6, +1 partial: cli-62) + 3 (Phase 7) + 6 (Phase 8) + 6 (Phase 9) = **46 tickets** across 10 phases. Phases 0–2 unblock everything else. Phases 3–4 deliver the vision. Phases 5–7 are polish. Phases 8–9 are the audit + test gap that surfaced after the original 7-phase plan was locked.
 
 ---
 
