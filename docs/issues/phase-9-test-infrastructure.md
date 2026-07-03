@@ -23,8 +23,8 @@ A mock gRPC server that replays scripted responses per RPC is the standard fix. 
 
 | ID | Title | Effort | Depends on |
 |---|---|---|---|
-| `cli-90` | Mock gRPC server harness | 3 days | — |
-| `cli-91` | Integration tests for operator auth | 2 days | cli-90 |
+| `cli-90` | [x] Mock gRPC server harness | 3 days | — |
+| `cli-91` | [x] Integration tests for operator auth | 2 days | cli-90 |
 | `cli-92` | Integration tests for audit | 2 days | cli-90 |
 | `cli-93` | Integration tests for HITL | 2 days | cli-90 |
 | `cli-94` | GitHub Actions CI workflow | 1 day | cli-91..93 |

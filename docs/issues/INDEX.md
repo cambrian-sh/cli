@@ -159,8 +159,8 @@ Detailed ticket files:
 
 | ID | Title | Parent ADR | Effort | Status |
 |---|---|---|---|---|
-| `cli-90` | Mock gRPC server harness | CLI-008/009/010 | 3 days | TODO |
-| `cli-91` | Integration tests for operator auth | CLI-002 | 2 days | TODO |
+| `cli-90` | Mock gRPC server harness | CLI-008/009/010 | 3 days | DONE |
+| `cli-91` | Integration tests for operator auth | CLI-002 | 2 days | DONE |
 | `cli-92` | Integration tests for audit | CLI-010 | 2 days | TODO |
 | `cli-93` | Integration tests for HITL | CLI-001, CLI-007 | 2 days | TODO |
 | `cli-94` | GitHub Actions CI workflow | CLI-003 | 1 day | TODO |
@@ -169,7 +169,7 @@ Detailed ticket files:
 Phase overview: `phase-9-test-infrastructure.md`
 Detailed ticket files:
 - `cli-90-mock-grpc-server-harness.md`
-- `cli-91-integration-tests-operator-auth.md`
+- [x] [cli-91-integration-tests-operator-auth](./cli-91-integration-tests-operator-auth.md)
 - `cli-92-integration-tests-audit.md`
 - `cli-93-integration-tests-hitl.md`
 - `cli-94-github-actions-ci.md`
