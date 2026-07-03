@@ -35,6 +35,8 @@ export interface MockServer {
   endStream: () => void;
   injectError: (rpc: string, code: grpc.status, message: string) => void;
   getCalls: (rpc?: string) => CallRecord[];
+  clearCalls: () => void;
+  clearResponses: () => void;
   close: () => Promise<void>;
 }
 
@@ -129,7 +131,7 @@ export async function startMockServer(): Promise<MockServer> {
 
   const port = await new Promise<number>((resolve, reject) => {
     server.bindAsync(
-      "127.0.0.1:0",
+      "0.0.0.0:0",
       grpc.ServerCredentials.createInsecure(),
       (err, port) => {
         if (err) reject(err);
@@ -137,6 +139,8 @@ export async function startMockServer(): Promise<MockServer> {
       }
     );
   });
+  
+  server.start();
   
   return {
     port,
@@ -161,6 +165,13 @@ export async function startMockServer(): Promise<MockServer> {
     getCalls: (rpc?: string) => {
       if (rpc) return calls.filter((c) => c.method === rpc);
       return calls;
+    },
+    clearCalls: () => {
+      calls.length = 0;
+    },
+    clearResponses: () => {
+      responses.clear();
+      errors.clear();
     },
     close: () => {
       return new Promise<void>((resolve, reject) => {

@@ -1,6 +1,6 @@
 # Cambrian CLI
 
-> TypeScript + Ink v7 admin companion and installer for the [Cambrian orchestrator](https://github.com/your-org/cambrian-runtime).
+> TypeScript + Ink v7 admin companion and installer for the [Cambrian](https://github.com/cambrian-sh/core) agent OS.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 ![Status: V1 mid-development](https://img.shields.io/badge/Status-V1%20Mid--Development-yellow)
@@ -17,14 +17,14 @@ It also doubles as the installer: `cambrian init` bootstraps the runtime (Postgr
 
 **V1 mid-development.** Phases complete: operator-plane adoption (Phase 1), operator auth model (Phase 8), audit read surface (Phase 6). Phases pending: distribution + install script (Phase 2), runtime install (Phase 3), service management (Phase 4), onboarding wizard (Phase 5), polish (Phase 7).
 
-| Surface | State |
-|---|---|
+| Surface                                                  | State                                                                                                                                                                                                 |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Operator auth (`login`, `logout`, `whoami`, OS keychain) | Stable on macOS/Linux. Windows uses DPAPI-encrypted files at `%LOCALAPPDATA%\cambrian\keychain\` — path-encoding unit-tested on Linux; the actual PowerShell + DPAPI round-trip only runs on Windows. |
-| Audit (`list`, `show`, `export`) | Stable. The `QueryAudit` RPC's filter shape does **not** include `--since` / `--until` / `--session` (those are kernel-side gaps). |
-| HITL (`approve`, `deny`, `approve list`) | Stable. `command_id` + `--reason` wired; backoff+jitter reconnect on the event stream. |
-| TUI dashboard (Ink v7) | Compiles and starts. Unverified against a real kernel — Ink requires raw mode and is not covered by the smoke tests. |
-| Standalone binary (`bun build --compile`) | Build script present in `package.json`; not yet built or distributed. |
-| Install script (`curl \| sh`) | Not written. Planned for Phase 2. |
+| Audit (`list`, `show`, `export`)                         | Stable. The `QueryAudit` RPC's filter shape does **not** include `--since` / `--until` / `--session` (those are kernel-side gaps).                                                                    |
+| HITL (`approve`, `deny`, `approve list`)                 | Stable. `command_id` + `--reason` wired; backoff+jitter reconnect on the event stream.                                                                                                                |
+| TUI dashboard (Ink v7)                                   | Compiles and starts. Unverified against a real kernel — Ink requires raw mode and is not covered by the smoke tests.                                                                                  |
+| Standalone binary (`bun build --compile`)                | Build script present in `package.json`; not yet built or distributed.                                                                                                                                 |
+| Install script (`curl \| sh`)                            | Not written. Planned for Phase 2.                                                                                                                                                                     |
 
 For a deeper status (what's done, what's pending, known gaps, commit SHAs), see [HANDOFF.md](./HANDOFF.md). For the locked plan and 12 architectural decisions, see `docs/plans/cli-initiative.md`.
 
@@ -66,8 +66,8 @@ Global flags (must come before the subcommand):
 ### From source (today)
 
 ```bash
-git clone https://github.com/your-org/cambrian-cli.git
-cd cambrian-cli
+git clone https://github.com/cambrian-sh/cli.git
+cd cli
 bun install
 bun run proto:gen   # regenerate src/proto-embed.ts from proto/
 ./scripts/test-cli.sh # 59 smoke tests
@@ -85,7 +85,7 @@ bun run build:bin   # produces dist/cambrian (~10 MB)
 ### `curl | sh` install (Phase 2, not yet written)
 
 ```bash
-curl -fsSL https://cambrian.dev/install.sh | sh
+curl -fsSL https://cambrian.sh/install.sh | sh
 cambrian login
 ```
 
@@ -95,75 +95,75 @@ This will fetch the right binary for the host's OS/arch, then `cambrian init` wi
 
 ### Auth (operator plane, Bearer-token auth)
 
-| Command | Description |
-|---|---|
-| `cambrian login` | Interactive. Prompts for username + password. Stores token in the OS keychain per server. |
-| `cambrian login --username <u> --password <p>` | Non-interactive. For scripts that want to log in but can't run a TTY. |
-| `cambrian logout` | Clear the keychain entry for the current server. |
-| `cambrian whoami` | Show server, source (flag/env/keychain), user, role, token expiry. Never echoes the token. |
+| Command                                        | Description                                                                                |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `cambrian login`                               | Interactive. Prompts for username + password. Stores token in the OS keychain per server.  |
+| `cambrian login --username <u> --password <p>` | Non-interactive. For scripts that want to log in but can't run a TTY.                      |
+| `cambrian logout`                              | Clear the keychain entry for the current server.                                           |
+| `cambrian whoami`                              | Show server, source (flag/env/keychain), user, role, token expiry. Never echoes the token. |
 
 ### Server (operator plane)
 
-| Command | Description |
-|---|---|
-| `cambrian approve <id>` | Approve a pending tool request. `--reason <text>` required for destructive actions. |
-| `cambrian approve list` | Watch the live HITL stream. `--timeout <s>`, `--json`. |
-| `cambrian deny <id>` | Deny a pending tool request. `--reason <text>`. |
-| `cambrian audit list` | List recent audit entries. `--json`, `--actor`, `--action`, `--target-type`, `--target-id`, `--limit`. |
-| `cambrian audit show <id>` | Show full detail for one entry. |
-| `cambrian audit export` | Export entries. `--format json\|csv\|ndjson`, `--output PATH` (mode 0600), `--reason TEXT` (required), `--force`. |
+| Command                    | Description                                                                                                       |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `cambrian approve <id>`    | Approve a pending tool request. `--reason <text>` required for destructive actions.                               |
+| `cambrian approve list`    | Watch the live HITL stream. `--timeout <s>`, `--json`.                                                            |
+| `cambrian deny <id>`       | Deny a pending tool request. `--reason <text>`.                                                                   |
+| `cambrian audit list`      | List recent audit entries. `--json`, `--actor`, `--action`, `--target-type`, `--target-id`, `--limit`.            |
+| `cambrian audit show <id>` | Show full detail for one entry.                                                                                   |
+| `cambrian audit export`    | Export entries. `--format json\|csv\|ndjson`, `--output PATH` (mode 0600), `--reason TEXT` (required), `--force`. |
 
 ### Server (agent plane, `x-agent-id` auth)
 
-| Command | Description |
-|---|---|
-| `cambrian tools list` | List registered tools. `--query`, `--k`, `--json`, `--dangerous`, `--safe`. |
-| `cambrian tools get <name>` | Show tool schema. `--summary`. |
-| `cambrian tools describe <name>` | Human-readable tool details. |
-| `cambrian tools exec <name>` | Execute a tool. `--args <json>`, `--file <path>`, `--dry-run`. |
-| `cambrian skills list` | List registered skills. `--query`, `--k`, `--json`. |
-| `cambrian skills get <name>` | Show skill JSON. `--summary`. |
-| `cambrian skills describe <name>` | Human-readable skill instructions. |
-| `cambrian watches list` | List reactive watch configs. `--json`, `--active`, `--inactive`. |
-| `cambrian watches create <json>` | Create a watch from JSON or `--from-file <path>`. |
-| `cambrian watches describe <id>` | Human-readable watch details. |
-| `cambrian watches delete <id>` | Delete a watch. |
-| `cambrian watches toggle <id>` | Toggle watch active state. |
-| `cambrian memory query <text>` | Semantic memory search. `--top-k`, `--json`, `--importance`, `--source`, `--session`. |
-| `cambrian memory write <text>` | Write to long-term memory. `--tags`, `--importance`. |
+| Command                           | Description                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------- |
+| `cambrian tools list`             | List registered tools. `--query`, `--k`, `--json`, `--dangerous`, `--safe`.           |
+| `cambrian tools get <name>`       | Show tool schema. `--summary`.                                                        |
+| `cambrian tools describe <name>`  | Human-readable tool details.                                                          |
+| `cambrian tools exec <name>`      | Execute a tool. `--args <json>`, `--file <path>`, `--dry-run`.                        |
+| `cambrian skills list`            | List registered skills. `--query`, `--k`, `--json`.                                   |
+| `cambrian skills get <name>`      | Show skill JSON. `--summary`.                                                         |
+| `cambrian skills describe <name>` | Human-readable skill instructions.                                                    |
+| `cambrian watches list`           | List reactive watch configs. `--json`, `--active`, `--inactive`.                      |
+| `cambrian watches create <json>`  | Create a watch from JSON or `--from-file <path>`.                                     |
+| `cambrian watches describe <id>`  | Human-readable watch details.                                                         |
+| `cambrian watches delete <id>`    | Delete a watch.                                                                       |
+| `cambrian watches toggle <id>`    | Toggle watch active state.                                                            |
+| `cambrian memory query <text>`    | Semantic memory search. `--top-k`, `--json`, `--importance`, `--source`, `--session`. |
+| `cambrian memory write <text>`    | Write to long-term memory. `--tags`, `--importance`.                                  |
 
 ### Config
 
-| Command | Description |
-|---|---|
-| `cambrian config` | Show resolved configuration. |
-| `cambrian config get <key>` | Print a single config value. |
-| `cambrian config path` | Print resolved config file path. |
+| Command                       | Description                               |
+| ----------------------------- | ----------------------------------------- |
+| `cambrian config`             | Show resolved configuration.              |
+| `cambrian config get <key>`   | Print a single config value.              |
+| `cambrian config path`        | Print resolved config file path.          |
 | `cambrian config set <k> <v>` | Set config key (`server`, `operator_id`). |
-| `cambrian config edit` | Open config in `$EDITOR` (or vi). |
+| `cambrian config edit`        | Open config in `$EDITOR` (or vi).         |
 
 ### Status
 
-| Command | Description |
-|---|---|
-| `cambrian status` | One-line server summary. `--json`. |
+| Command           | Description                                      |
+| ----------------- | ------------------------------------------------ |
+| `cambrian status` | One-line server summary. `--json`.               |
 | `cambrian doctor` | Diagnose config + server connectivity. `--json`. |
 
 ### TUI
 
-| Command | Description |
-|---|---|
+| Command              | Description                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------- |
 | `cambrian` (no args) | Launch the interactive TUI dashboard (Approvals / Tools / Watches / Skills panes). |
 
 ## Auth in depth
 
 The CLI uses three identity layers. Pick whichever fits the environment.
 
-| Source | Syntax | Use case | Storage |
-|---|---|---|---|
-| `--token` flag | `cambrian --token <jwt> approve <id>` | One-shot CI/script invocations. Never stored. | none |
-| `CAMBRIAN_TOKEN` env | `CAMBRIAN_TOKEN=eyJ... cambrian approve <id>` | One-shot CI/script invocations. Never stored. | none |
-| OS keychain | `cambrian login` (interactive) | Interactive use. Stored per server, encrypted by the OS. | macOS Keychain / Linux Secret Service / Windows DPAPI |
+| Source               | Syntax                                        | Use case                                                 | Storage                                               |
+| -------------------- | --------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------- |
+| `--token` flag       | `cambrian --token <jwt> approve <id>`         | One-shot CI/script invocations. Never stored.            | none                                                  |
+| `CAMBRIAN_TOKEN` env | `CAMBRIAN_TOKEN=eyJ... cambrian approve <id>` | One-shot CI/script invocations. Never stored.            | none                                                  |
+| OS keychain          | `cambrian login` (interactive)                | Interactive use. Stored per server, encrypted by the OS. | macOS Keychain / Linux Secret Service / Windows DPAPI |
 
 **Precedence:** `--token` > `CAMBRIAN_TOKEN` > keychain. The first match wins.
 
@@ -189,12 +189,12 @@ Warning: token expired on 2026-07-02. Run `cambrian login` to refresh.
 
 ### Environment variables
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `CAMBRIAN_SERVER` | `localhost:50051` | gRPC server address. |
-| `CAMBRIAN_OPERATOR_ID` | `$USER` | Identity for HITL approvals. |
-| `CAMBRIAN_TOKEN` | — | One-shot operator token. Overrides keychain. |
-| `CAMBRIAN_PROTO_PATH` | — | Override proto file location (rare; only for development). |
+| Variable               | Default           | Purpose                                                    |
+| ---------------------- | ----------------- | ---------------------------------------------------------- |
+| `CAMBRIAN_SERVER`      | `localhost:50051` | gRPC server address.                                       |
+| `CAMBRIAN_OPERATOR_ID` | `$USER`           | Identity for HITL approvals.                               |
+| `CAMBRIAN_TOKEN`       | —                 | One-shot operator token. Overrides keychain.               |
+| `CAMBRIAN_PROTO_PATH`  | —                 | Override proto file location (rare; only for development). |
 
 ### Config file
 
@@ -244,15 +244,15 @@ The CLI never branches on tool name, agent ID, or command verb. The kernel decid
 
 ### Commands
 
-| Script | Purpose |
-|---|---|
-| `bun run dev` | Hot-reload dev mode. |
-| `bun run build` | Bundle to `dist/index.js` (Node.js target). |
-| `bun run build:bin` | Compile to standalone `dist/cambrian` binary. |
-| `bun run proto:gen` | Regenerate `src/proto-embed.ts` from `proto/`. |
-| `bun test` | Run unit tests (81 tests, no server needed). |
-| `bun run test:smoke` | Run smoke tests (59 tests, no server needed). |
-| `node_modules/.bin/tsc --noEmit` | Type-check. Must be clean. |
+| Script                           | Purpose                                        |
+| -------------------------------- | ---------------------------------------------- |
+| `bun run dev`                    | Hot-reload dev mode.                           |
+| `bun run build`                  | Bundle to `dist/index.js` (Node.js target).    |
+| `bun run build:bin`              | Compile to standalone `dist/cambrian` binary.  |
+| `bun run proto:gen`              | Regenerate `src/proto-embed.ts` from `proto/`. |
+| `bun test`                       | Run unit tests (81 tests, no server needed).   |
+| `bun run test:smoke`             | Run smoke tests (59 tests, no server needed).  |
+| `node_modules/.bin/tsc --noEmit` | Type-check. Must be clean.                     |
 
 ## Testing
 
@@ -333,7 +333,7 @@ Before opening a PR:
 - `node_modules/.bin/tsc --noEmit` must be clean.
 - `bun test` must pass (81/81).
 - `./scripts/test-cli.sh` must pass (59/59).
-- One logical change per commit, imperative-mood message, body explains *why*.
+- One logical change per commit, imperative-mood message, body explains _why_.
 - Do not push without an explicit maintainer request.
 - Do not amend a commit that was rejected by hooks — fix and make a new commit.
 

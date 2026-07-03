@@ -13,9 +13,15 @@ describe("resolveReason", () => {
   });
 
   test("throws when required and no --reason in non-TTY", async () => {
-    await expect(
-      resolveReason([], { required: true })
-    ).rejects.toThrow(/--reason is required/);
+    const originalIsTTY = process.stdout.isTTY;
+    process.stdout.isTTY = false;
+    try {
+      await expect(
+        resolveReason([], { required: true })
+      ).rejects.toThrow(/--reason is required/);
+    } finally {
+      process.stdout.isTTY = originalIsTTY;
+    }
   });
 
   test("accepts reasonFlag override", async () => {

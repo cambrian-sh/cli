@@ -243,11 +243,51 @@ $protected = [System.Security.Cryptography.ProtectedData]::Protect($bytes, $null
 
 const memoryBackend: KeychainBackend = (() => {
   const store = new Map<string, KeychainEntry>();
+  
+  function getDbPath() {
+    return process.env.CAMBRIAN_KEYCHAIN_FILE;
+  }
+
+  function readStore(): Record<string, KeychainEntry> {
+    const p = getDbPath();
+    if (!p) return {};
+    try {
+      if (!require("node:fs").existsSync(p)) return {};
+      return JSON.parse(require("node:fs").readFileSync(p, "utf-8"));
+    } catch {
+      return {};
+    }
+  }
+
+  function writeStore(s: Record<string, KeychainEntry>) {
+    const p = getDbPath();
+    if (p) require("node:fs").writeFileSync(p, JSON.stringify(s));
+  }
+
   return {
     available: () => true,
-    get: (server) => store.get(server) ?? null,
-    set: (server, entry) => { store.set(server, entry); },
-    clear: (server) => { store.delete(server); },
+    get: (server) => {
+      if (getDbPath()) return readStore()[server] ?? null;
+      return store.get(server) ?? null;
+    },
+    set: (server, entry) => {
+      if (getDbPath()) {
+        const s = readStore();
+        s[server] = entry;
+        writeStore(s);
+      } else {
+        store.set(server, entry);
+      }
+    },
+    clear: (server) => {
+      if (getDbPath()) {
+        const s = readStore();
+        delete s[server];
+        writeStore(s);
+      } else {
+        store.delete(server);
+      }
+    },
   };
 })();
 

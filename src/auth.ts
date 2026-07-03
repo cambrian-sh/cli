@@ -137,6 +137,21 @@ export async function login(opts: LoginOptions): Promise<KeychainEntry> {
       role: typeof res.role === "string" ? res.role : "operator",
       username: username!,
     };
+    
+    // Attempt to parse JWT exp
+    try {
+      const parts = res.token.split(".");
+      if (parts.length === 3) {
+        const payloadStr = Buffer.from(parts[1]!, "base64").toString("utf-8");
+        const payload = JSON.parse(payloadStr);
+        if (typeof payload.exp === "number") {
+          entry.expiresAt = payload.exp;
+        }
+      }
+    } catch {
+      // Ignore parse errors, just don't set expiresAt
+    }
+
     getKeychain().set(opts.server, entry);
     return entry;
   } finally {

@@ -11,7 +11,7 @@ import { handleConnectionError } from "./errors";
 import { newCommandId, commandIdForRetry } from "./util/command-id";
 import { resolveReason } from "./util/reason";
 import { clientTag } from "./util/client-tag";
-import { login as authLogin, logout as authLogout, whoami as authWhoami, formatWhoami, resolveAuth, isMutatingRole, warnIfExpiringSoon, type Role } from "./auth";
+import { login as authLogin, logout as authLogout, whoami as authWhoami, formatWhoami, resolveAuth, resolveToken, isMutatingRole, warnIfExpiringSoon, type Role } from "./auth";
 import { createAuditClient, queryAudit, findAuditById, formatAuditTable, formatAuditDetail, parseListFlags, parseExportFormat, formatAuditExport, writeExportFile, runExport } from "./audit";
 
 function resolveCommandId(
@@ -675,9 +675,10 @@ async function handleApprove(
     process.exit(1);
   }
   const cfg = loadConfig();
+  const resolvedToken = resolveToken(undefined, cfg.server)?.token;
   const operator = createOperatorClient({
     server: cfg.server,
-    token: cfg.token,
+    token: resolvedToken,
   });
   const reason = await resolveReason(args, { required: false });
   const commandId = resolveCommandId(args, "approve", { intervention_id: args[0], approve: true });
@@ -689,9 +690,9 @@ async function handleApprove(
       approve: true,
     });
     if (res.deduped) {
-      console.log(`Already approved (deduped, id: ${res.command_id}).`);
+      console.log(`Already approved (deduped, id: ${(res as any).commandId}).`);
     } else {
-      console.log(`✓ Approved (id: ${res.command_id}).`);
+      console.log(`✓ Approved (id: ${(res as any).commandId}).`);
     }
   } catch (err) {
     handleConnectionError(err as Error, cfg.server);
@@ -710,9 +711,10 @@ async function handleDeny(
     process.exit(1);
   }
   const cfg = loadConfig();
+  const resolvedToken = resolveToken(undefined, cfg.server)?.token;
   const operator = createOperatorClient({
     server: cfg.server,
-    token: cfg.token,
+    token: resolvedToken,
   });
   const reason = await resolveReason(args, { required: false });
   const commandId = resolveCommandId(args, "deny", { intervention_id: args[0], approve: false });
@@ -724,9 +726,9 @@ async function handleDeny(
       approve: false,
     });
     if (res.deduped) {
-      console.log(`Already denied (deduped, id: ${res.command_id}).`);
+      console.log(`Already denied (deduped, id: ${(res as any).commandId}).`);
     } else {
-      console.log(`✓ Denied (id: ${res.command_id}).`);
+      console.log(`✓ Denied (id: ${(res as any).commandId}).`);
     }
   } catch (err) {
     handleConnectionError(err as Error, cfg.server);
