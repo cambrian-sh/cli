@@ -1,7 +1,8 @@
 # CLI-004 — Install Script Design
 
 **Date:** 2026-06-25
-**Status:** Accepted (D7, D8, D9, D10, D11 locked in `docs/plans/cli-initiative.md` Part 0)
+**Amended:** 2026-07-13 — repo URLs updated to `cambrian-sh` org; telemetry prompt reads `/dev/tty` (piped-stdin fix); version lookup switched to release-redirect; manual-install arch mapping corrected; Windows `install.ps1` pulled into V1; `cambrian init` scope extended to the Python/agent/model runtime
+**Status:** Accepted (D7, D8, D9, D10, D11 locked in `docs/plans/cli-initiative.md` Part 0; amended 2026-07-13)
 **Author:** CLI initiative
 **Depends on:** CLI-003 (distribution — the script downloads from GitHub Releases)
 **Relates to:** CLI-005 (onboarding wizard — what runs after the script), CLI-006 (service management)
@@ -27,24 +28,29 @@ D7 locks the split: the `curl | sh` script does the **minimum** — install the 
 curl -fsSL https://cambrian.dev/install.sh | sh
 ```
 
-There is no Windows version in V1 (D5). The README points to `cambrian update` and the V1.1 follow-up.
+```powershell
+# Windows (V1, per the 2026-07-13 D5 amendment in CLI-003)
+powershell -ExecutionPolicy Bypass -c "irm https://cambrian.dev/install.ps1 | iex"
+```
+
+The two scripts share the same asset-naming contract and step order; `install.ps1` installs to `%USERPROFILE%\.cambrian\bin` and updates the user-level `PATH` via the registry (no admin elevation).
 
 ### The install script's responsibilities (D7)
 
 The script is **~80 lines of bash**. It does these things, in order, with a spinner and a plain-English status line for each:
 
 1. **Welcome** — print the Cambrian banner (1 line of ASCII), version, GitHub link.
-2. **Platform detection** — `uname -sm`. Map to `darwin-arm64` / `darwin-x64` / `linux-x64` / `linux-arm64`. If unsupported (Windows, BSD, musl), print "V1 supports macOS + Linux. See V1.1 roadmap for Windows." and exit 1.
+2. **Platform detection** — `uname -sm`, then **normalize the arch**: `x86_64` → `x64`, `aarch64`/`arm64` → `arm64`, `Darwin`/`Linux` lowercased — asset names use `x64`/`arm64`, never raw `uname` output. Map to `darwin-arm64` / `darwin-x64` / `linux-x64` / `linux-arm64`. If unsupported (BSD, musl, 32-bit), print "Cambrian supports macOS, Linux (glibc), and Windows (via install.ps1). See the roadmap for musl." and exit 1. (Windows users landing in the bash script — e.g. Git Bash — are pointed at the `install.ps1` one-liner.)
 3. **Architecture validation** — confirm 64-bit (we don't ship 32-bit). Refuse musl libc on Linux for V1 (V1.1 will ship `cambrian-linux-x64-musl`).
-4. **Latest version lookup** — `curl -fsSL https://api.github.com/repos/cambrian/cambrian-runtime/releases/latest | grep tag_name`. If GitHub is unreachable, print "Could not reach GitHub. Check your network or install manually: https://cambrian.dev/manual-install" and exit 1.
-5. **Download CLI binary** — `cambrian-{os}-{arch}` from the release. Stream to a temp file. Print `[#              ] 1.2 MB / 9.8 MB` progress.
-6. **Download orchestrator binary** — `cambrian-orchestrator-{os}-{arch}` from the orchestrator's release (different repo, linked from the CLI release notes). Same progress pattern.
-7. **Verify checksums** — both against `SHA256SUMS` from the release. If mismatch, print "Binary integrity check failed. Refusing to install. Possible cause: incomplete download or compromised release. Try again or report at https://github.com/cambrian/cambrian-runtime/issues" and exit 1.
+4. **Latest version lookup** — no API call, no JSON scraping: download directly via the stable redirect `https://github.com/cambrian-sh/cli/releases/latest/download/<asset>` (the tag, when needed for display, comes from the redirect's final URL). This avoids API rate limits and brittle `grep tag_name` parsing. If GitHub is unreachable, print "Could not reach GitHub. Check your network or install manually: https://cambrian.dev/manual-install" and exit 1.
+5. **Download CLI binary** — `cambrian-{os}-{arch}` from the `cambrian-sh/cli` release. Stream to a temp file with progress (binaries are ~50–100 MB — Bun runtime embedded — so progress display matters).
+6. **Download orchestrator binary** — `cambrian-orchestrator-{os}-{arch}` from the kernel repo's release (`github.com/cambrian-sh/core/releases`, version pinned in the CLI release notes). Same progress pattern.
+7. **Verify checksums** — both against each repo's `SHA256SUMS`. If mismatch, print "Binary integrity check failed. Refusing to install. Possible cause: incomplete download or compromised release. Try again or report at https://github.com/cambrian-sh/cli/issues" and exit 1.
 8. **Install to `~/.cambrian/bin/`** — `mkdir -p`, `mv` the two binaries. No `sudo` required (D6: user-level install).
 9. **Update `PATH`** — append `export PATH="$HOME/.cambrian/bin:$PATH"` to `~/.zshrc` (macOS default) or `~/.bashrc` (Linux default) if not already present. Idempotent — checks for the line first.
 10. **Verify install** — `~/.cambrian/bin/cambrian --version` should print `cambrian <version>`. If it doesn't, the binary is broken; print a clear error.
-11. **Telemetry opt-in (D9)** — print "Help us improve Cambrian by sending anonymous install metrics (OS, version, success/fail). No PII. [Y/n]:". If yes, write `telemetry_enabled: true` to `~/.cambrian/config.json`. The CLI then sends a single `POST` to `https://telemetry.cambrian.dev/v1/install` with `{os, arch, version, result: "success"}`. `CAMBRIAN_TELEMETRY=0` env var pre-empts the prompt with "off".
-12. **Hand off to `cambrian init` (D8)** — print "Cambrian installed. Running first-time setup..." and `exec ~/.cambrian/bin/cambrian` (no args). The CLI detects "no config + no keychain + first run" and runs the full stack setup wizard (CLI-005).
+11. **Telemetry opt-in (D9)** — print "Help us improve Cambrian by sending anonymous install metrics (OS, version, success/fail). No PII. [Y/n]:". **The prompt must read from `/dev/tty`, not stdin** — under `curl | sh`, stdin *is* the script, so a plain `read` consumes script text or hits EOF. If `/dev/tty` is unavailable (CI, containers, no terminal), skip the prompt and default to **off**. If yes, write `telemetry_enabled: true` to `~/.cambrian/config.json`. The CLI then sends a single `POST` to `https://telemetry.cambrian.dev/v1/install` with `{os, arch, version, result: "success"}`. `CAMBRIAN_TELEMETRY=0` env var pre-empts the prompt with "off".
+12. **Hand off to `cambrian init` (D8)** — print "Cambrian installed. Running first-time setup..." and `exec ~/.cambrian/bin/cambrian < /dev/tty` (no args) — the stdin re-attach matters for the same reason as step 11: the wizard is an interactive TUI and the pipe is exhausted. If there is no TTY, skip the handoff and print "Run `cambrian` to finish setup." The CLI detects "no config + no keychain + first run" and runs the full stack setup wizard (CLI-005).
 
 ### The install script's non-responsibilities (D7)
 
@@ -56,8 +62,21 @@ The install script **does not**:
 - Register a service.
 - Start the orchestrator.
 - Prompt for LLM API keys.
+- Build the Python agent runtime (venv, per-agent `requirements.txt`, SDK install).
+- Download models (Ollama embedder pull, HuggingFace pre-fetch for the reranker cross-encoder and docling models).
 
 All of that is `cambrian init`'s job. The split is intentional: the `curl | sh` step is "get the tools." The `cambrian init` step is "set up the world." Users who already have Postgres can skip the install step; users who want a manual install can do it without the script.
+
+> **Scope note for CLI-005 (added 2026-07-13):** the original wizard scope
+> (Postgres, migrations, config, service) is incomplete for a working kernel.
+> `cambrian init` must additionally own: **(a)** Python ≥3.11 detection and venv
+> creation, **(b)** installing the agent SDK and each system agent's pinned
+> `requirements.txt`, with a per-agent import self-check that names exactly which
+> agent is missing what, **(c)** `ollama pull` of the configured embedder model,
+> **(d)** HuggingFace pre-fetch of the reranker/docling models so the first query
+> isn't a multi-GB download. The full step order lives in the kernel repo's
+> `docs/reports/distribution-production-readiness.md` §4.3. Every step is
+> check-then-do, so re-running `cambrian init` repairs a broken setup.
 
 ### Idempotency
 
@@ -81,11 +100,13 @@ rm -rf ~/.cambrian
 
 | Failure | Message |
 |---|---|
-| Unsupported OS | "Cambrian V1 supports macOS and Linux. Windows is coming in V1.1." |
+| Unsupported OS | "Cambrian supports macOS, Linux (glibc), and Windows (install.ps1). musl/BSD are on the roadmap." |
+| Windows user in the bash script | "On Windows, run: powershell -ExecutionPolicy Bypass -c \"irm https://cambrian.dev/install.ps1 \| iex\"" |
 | GitHub unreachable | "Could not reach GitHub. Check your network or install manually: https://cambrian.dev/manual-install" |
-| Checksum mismatch | "Binary integrity check failed. Refusing to install. Possible cause: incomplete download or compromised release. Try again or report at https://github.com/cambrian/cambrian-runtime/issues" |
+| Checksum mismatch | "Binary integrity check failed. Refusing to install. Possible cause: incomplete download or compromised release. Try again or report at https://github.com/cambrian-sh/cli/issues" |
 | Permission denied (writing to `~/.cambrian/bin/`) | "Cannot write to ~/.cambrian/bin. Check disk space and permissions." |
-| Binary doesn't run | "Downloaded binary is not executable. Report at https://github.com/cambrian/cambrian-runtime/issues" |
+| Binary doesn't run | "Downloaded binary is not executable. Report at https://github.com/cambrian-sh/cli/issues" |
+| No TTY (piped, CI) | Telemetry defaults to off; setup handoff skipped with "Run `cambrian` to finish setup." |
 | User Ctrl-C | Exit immediately, no cleanup needed (nothing was modified yet) |
 
 **No stack traces. No log dumps. Always a single `cambrian doctor` command to diagnose.**
@@ -95,23 +116,28 @@ rm -rf ~/.cambrian
 Documented in the README and at `cambrian.dev/manual-install`:
 
 ```bash
-# 1. Download from GitHub Releases
-curl -fsSL https://github.com/cambrian/cambrian-runtime/releases/latest/download/cambrian-$(uname -sm | tr ' ' '-' | tr A-Z a-z) -o cambrian
-curl -fsSL https://github.com/cambrian/cambrian-orchestrator/releases/latest/download/cambrian-orchestrator-$(uname -sm | tr ' ' '-' | tr A-Z a-z) -o cambrian-orchestrator
+# 1. Determine your platform string (assets use x64/arm64, NOT raw uname output)
+PLATFORM="$(uname -s | tr A-Z a-z)-$(uname -m | sed -e 's/x86_64/x64/' -e 's/aarch64/arm64/')"
+# → darwin-arm64 | darwin-x64 | linux-x64 | linux-arm64
 
-# 2. Verify checksums
-curl -fsSL https://github.com/cambrian/cambrian-runtime/releases/latest/download/SHA256SUMS | grep $(uname -sm | tr ' ' '-' | tr A-Z a-z)
+# 2. Download from GitHub Releases (CLI from cambrian-sh/cli, orchestrator from cambrian-sh/core)
+curl -fsSL "https://github.com/cambrian-sh/cli/releases/latest/download/cambrian-${PLATFORM}" -o cambrian
+curl -fsSL "https://github.com/cambrian-sh/core/releases/latest/download/cambrian-orchestrator-${PLATFORM}" -o cambrian-orchestrator
+
+# 3. Verify checksums (each binary against its own repo's SHA256SUMS)
+curl -fsSL "https://github.com/cambrian-sh/cli/releases/latest/download/SHA256SUMS"  | grep "$PLATFORM"
+curl -fsSL "https://github.com/cambrian-sh/core/releases/latest/download/SHA256SUMS" | grep "$PLATFORM"
 shasum -a 256 cambrian cambrian-orchestrator  # must match
 
-# 3. Install
+# 4. Install
 mkdir -p ~/.cambrian/bin
 mv cambrian cambrian-orchestrator ~/.cambrian/bin/
 chmod +x ~/.cambrian/bin/cambrian ~/.cambrian/bin/cambrian-orchestrator
 
-# 4. Add to PATH (shell-specific)
+# 5. Add to PATH (shell-specific)
 echo 'export PATH="$HOME/.cambrian/bin:$PATH"' >> ~/.zshrc  # or ~/.bashrc
 
-# 5. Run
+# 6. Run
 cambrian init
 ```
 
@@ -154,9 +180,10 @@ cambrian init
 
 ## Acceptance criteria
 
-- [ ] `cambrian.dev/install.sh` serves the script.
-- [ ] `cli/scripts/install.sh` exists in the repo (mirror of the hosted version).
-- [ ] Script handles: platform detection, version lookup, CLI + orchestrator download, checksum verification, install to `~/.cambrian/bin/`, `PATH` update, telemetry opt-in, handoff to `cambrian init`.
+- [ ] `cambrian.dev/install.sh` and `cambrian.dev/install.ps1` serve the scripts.
+- [ ] `cli/scripts/install.sh` and `cli/scripts/install.ps1` exist in the repo (mirrors of the hosted versions).
+- [ ] Script handles: platform detection (with `x86_64→x64` / `aarch64→arm64` normalization), release-redirect download (no API/JSON parsing), CLI + orchestrator download from `cambrian-sh/cli` and `cambrian-sh/core`, checksum verification, install to `~/.cambrian/bin/`, `PATH` update, telemetry opt-in, handoff to `cambrian init`.
+- [ ] All interactive reads use `/dev/tty`; under `curl | sh` with no TTY, telemetry defaults to off and the handoff is skipped with a printed next step (tested both ways).
 - [ ] Script is idempotent: re-running on a fresh install upgrades; re-running on an up-to-date install exits 0 with a message.
 - [ ] All failure modes print actionable messages; no stack traces.
 - [ ] Manual install documented in README and at `cambrian.dev/manual-install`.
