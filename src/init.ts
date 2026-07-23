@@ -12,7 +12,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createConnection } from "node:net";
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, cpSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { env, platform } from "node:process";
 import { createInterface } from "node:readline";
@@ -261,15 +261,34 @@ export async function runInit(opts: InitOptions = {}): Promise<number> {
     }
     if (existsSync(venvPyLocal(venvDir))) {
       venvPy = venvPyLocal(venvDir);
-      // Locate the agent runtime assets (repo dev-tree today; bundled with the orchestrator
-      // release later). CAMBRIAN_AGENTS_DIR / CAMBRIAN_SDK_DIR override the search.
-      const agentsLock = firstExisting([
-        env.CAMBRIAN_AGENTS_DIR ? join(env.CAMBRIAN_AGENTS_DIR, "requirements.lock") : undefined,
-        resolve(process.cwd(), "agents", "requirements.lock"),
-        resolve(process.cwd(), "cambrian-core", "agents", "requirements.lock"),
-        resolve(process.cwd(), "..", "cambrian-core", "agents", "requirements.lock"),
+      // Agents live in the app-data dir (PREFIX/agents), just like kernel storage — the kernel
+      // scans this ONE directory (metabolism.agents_dir). init materializes it from the core
+      // agents: on a released machine the installer pre-seeds PREFIX/agents; in the dev tree we
+      // copy from the sibling core repo. CAMBRIAN_AGENTS_DIR overrides the source. Re-running
+      // init refreshes the agents.
+      const agentsDest = join(PREFIX, "agents");
+      const agentSource = firstExisting([
+        env.CAMBRIAN_AGENTS_DIR,
+        resolve(process.cwd(), "cambrian-core", "agents"),
+        resolve(process.cwd(), "..", "cambrian-core", "agents"),
+        resolve(process.cwd(), "agents"),
       ]);
-      if (agentsLock) agentsDir = resolve(agentsLock, "..");
+
+      if (agentSource && resolve(agentSource) !== resolve(agentsDest)) {
+        mkdirSync(agentsDest, { recursive: true });
+        cpSync(agentSource, agentsDest, { recursive: true });
+        agentsDir = agentsDest;
+        line("ok", "agents materialized", agentsDest + dim("  (→ app-data)"));
+      } else if (existsSync(join(agentsDest, "requirements.lock"))) {
+        agentsDir = agentsDest; // pre-seeded by the installer on a released machine
+        line("ok", "agents present", agentsDest);
+      } else {
+        line("warn", "no agent source found", "set CAMBRIAN_AGENTS_DIR — the kernel will start with no agents");
+        degraded = true;
+      }
+      const agentsLock = agentsDir && existsSync(join(agentsDir, "requirements.lock"))
+        ? join(agentsDir, "requirements.lock")
+        : undefined;
       const sdkDir = firstExisting([
         env.CAMBRIAN_SDK_DIR,
         resolve(process.cwd(), "sdk"),
