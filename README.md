@@ -82,14 +82,45 @@ bun run build:bin   # produces dist/cambrian (~10 MB)
 ./dist/cambrian --help
 ```
 
-### `curl | sh` install (Phase 2, not yet written)
+### `curl | sh` install
 
 ```bash
-curl -fsSL https://cambrian.sh/install.sh | sh
-cambrian login
+# macOS / Linux
+curl -fsSL https://cambrian.dev/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -c "irm https://cambrian.dev/install.ps1 | iex"
 ```
 
-This will fetch the right binary for the host's OS/arch, then `cambrian init` will bootstrap the runtime.
+The script (`scripts/install.sh` / `scripts/install.ps1`, CLI-004) detects the host OS/arch,
+downloads the matching `cambrian` and `cambrian-orchestrator` binaries from GitHub Releases,
+verifies their SHA256SUMS, installs them to `~/.cambrian/bin`, updates `PATH`, and hands off to
+`cambrian init`. It touches only `~/.cambrian` and your shell rc — no `sudo`. Re-running it
+upgrades in place (idempotent).
+
+### Manual install (no `curl | sh`)
+
+```bash
+# Assets use x64/arm64, NOT raw uname output.
+PLATFORM="$(uname -s | tr A-Z a-z)-$(uname -m | sed -e 's/x86_64/x64/' -e 's/aarch64/arm64/')"
+# → darwin-arm64 | darwin-x64 | linux-x64 | linux-arm64  (Windows: windows-x64.exe)
+
+curl -fsSL "https://github.com/cambrian-sh/cli/releases/latest/download/cambrian-${PLATFORM}" -o cambrian
+curl -fsSL "https://github.com/cambrian-sh/core/releases/latest/download/cambrian-orchestrator-${PLATFORM}" -o cambrian-orchestrator
+
+# Verify each binary against its repo's SHA256SUMS
+curl -fsSL "https://github.com/cambrian-sh/cli/releases/latest/download/SHA256SUMS"  | grep "$PLATFORM"
+curl -fsSL "https://github.com/cambrian-sh/core/releases/latest/download/SHA256SUMS" | grep "$PLATFORM"
+shasum -a 256 cambrian cambrian-orchestrator   # must match
+
+mkdir -p ~/.cambrian/bin && mv cambrian cambrian-orchestrator ~/.cambrian/bin/
+chmod +x ~/.cambrian/bin/cambrian ~/.cambrian/bin/cambrian-orchestrator
+echo 'export PATH="$HOME/.cambrian/bin:$PATH"' >> ~/.zshrc   # or ~/.bashrc
+cambrian init
+```
+
+`cambrian init` then sets up the world (database up + migrations, config, orchestrator, verify) —
+check-then-do at every step, so re-running it repairs a half-install.
 
 ## Commands
 

@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-25
 **Amended:** 2026-07-13 — repo URLs updated to `cambrian-sh` org; telemetry prompt reads `/dev/tty` (piped-stdin fix); version lookup switched to release-redirect; manual-install arch mapping corrected; Windows `install.ps1` pulled into V1; `cambrian init` scope extended to the Python/agent/model runtime
-**Status:** Accepted (D7, D8, D9, D10, D11 locked in `docs/plans/cli-initiative.md` Part 0; amended 2026-07-13)
+**Status:** Accepted → **Implemented (scripts)** 2026-07-22 (D7, D8, D9, D10, D11 locked in `docs/plans/cli-initiative.md` Part 0; amended 2026-07-13). `scripts/install.sh` (POSIX, `sh -n` clean) + `scripts/install.ps1` (PS 5.1, parse-clean) ship the full step order: platform+arch normalize, release-redirect download of the CLI (`cambrian-sh/cli`) + orchestrator (`cambrian-sh/core`), SHA256SUMS verify, `~/.cambrian/bin` install, PATH update, `/dev/tty` telemetry opt-in (default off, `CAMBRIAN_TELEMETRY=0` pre-empt), idempotent upgrade, hand off to `cambrian init`. Manual-install documented in the README. Release CI for the 5 binaries + hosted `cambrian.dev/install.*` remain (release-time / infra).
 **Author:** CLI initiative
 **Depends on:** CLI-003 (distribution — the script downloads from GitHub Releases)
 **Relates to:** CLI-005 (onboarding wizard — what runs after the script), CLI-006 (service management)

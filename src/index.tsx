@@ -97,6 +97,27 @@ async function main() {
     return;
   }
 
+  if (subcommand === "init") {
+    // Full-stack setup (CLI-005). Runs BEFORE the config-required path below — init is what
+    // creates that config, so it must not demand one first.
+    const { runInit } = await import("./init");
+    const code = await runInit({
+      gpu: subArgs.includes("--gpu"),
+      yes: subArgs.includes("--yes") || subArgs.includes("-y"),
+    });
+    process.exit(code);
+  }
+
+  if (subcommand === "start" || subcommand === "stop" || subcommand === "restart") {
+    // Orchestrator lifecycle (CLI-006). No operator connection required — these manage the
+    // local process, not a session.
+    const lc = await import("./lifecycle");
+    const ok = subcommand === "start" ? await lc.startOrchestrator()
+      : subcommand === "stop" ? await lc.stopOrchestrator()
+      : await lc.restartOrchestrator();
+    process.exit(ok ? 0 : 1);
+  }
+
   if (subcommand === "login" || subcommand === "logout" || subcommand === "whoami") {
     const server = resolveServer();
     try {
@@ -228,6 +249,11 @@ Usage: cambrian [command] [args]
 
 Commands:
   cambrian                       Launch interactive TUI dashboard
+  cambrian init                  Full-stack setup: database, config, orchestrator (safe to re-run)
+  cambrian init --gpu            Set up with CUDA torch for the agent runtime
+  cambrian start                 Start the local orchestrator (detached; waits for :50051)
+  cambrian stop                  Stop the orchestrator started by \`cambrian start\`
+  cambrian restart               Restart the local orchestrator
   cambrian login                 Authenticate to server (stores token in OS keychain)
   cambrian login --username <u> --password <p>
                                  Non-interactive login
