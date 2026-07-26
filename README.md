@@ -23,8 +23,8 @@ It also doubles as the installer: `cambrian init` bootstraps the runtime (Postgr
 | Audit (`list`, `show`, `export`)                         | Stable. The `QueryAudit` RPC's filter shape does **not** include `--since` / `--until` / `--session` (those are kernel-side gaps).                                                                    |
 | HITL (`approve`, `deny`, `approve list`)                 | Stable. `command_id` + `--reason` wired; backoff+jitter reconnect on the event stream.                                                                                                                |
 | TUI dashboard (Ink v7)                                   | Compiles and starts. Unverified against a real kernel — Ink requires raw mode and is not covered by the smoke tests.                                                                                  |
-| Standalone binary (`bun build --compile`)                | Build script present in `package.json`; not yet built or distributed.                                                                                                                                 |
-| Install script (`curl \| sh`)                            | Not written. Planned for Phase 2.                                                                                                                                                                     |
+| Standalone binary (`bun build --compile`)                | `bun run build:bin` produces a working single-file executable (verified `--version`).                                                                                                                 |
+| Install script (`curl \| sh`)                            | Source mode: clones + builds both binaries. GitHub Releases are **not** used (empty during active development).                                                                                       |
 
 For a deeper status (what's done, what's pending, known gaps, commit SHAs), see [HANDOFF.md](./HANDOFF.md). For the locked plan and 12 architectural decisions, see `docs/plans/cli-initiative.md`.
 
@@ -92,30 +92,51 @@ curl -fsSL https://cambrian.dev/install.sh | sh
 powershell -ExecutionPolicy Bypass -c "irm https://cambrian.dev/install.ps1 | iex"
 ```
 
-The script (`scripts/install.sh` / `scripts/install.ps1`, CLI-004) detects the host OS/arch,
-downloads the matching `cambrian` and `cambrian-orchestrator` binaries from GitHub Releases,
-verifies their SHA256SUMS, installs them to `~/.cambrian/bin`, updates `PATH`, and hands off to
-`cambrian init`. It touches only `~/.cambrian` and your shell rc — no `sudo`. Re-running it
-upgrades in place (idempotent).
+The script (`scripts/install.sh` / `scripts/install.ps1`) **builds from source** — it does not
+use GitHub Releases, which are empty while Cambrian is under daily development. It clones
+`cambrian-sh/cli`, `cambrian-sh/core` and `cambrian-sh/agent-sdk-python` into `~/.cambrian/src`,
+builds `cambrian` (bun) and `cambrian-orchestrator` (go), installs both to `~/.cambrian/bin`,
+updates `PATH`, and hands off to `cambrian init`. It touches only `~/.cambrian` and your shell
+rc — no `sudo`. Re-running it is the **update** path: fetch → reset to the remote → rebuild, and
+it no-ops when neither checkout moved.
 
-### Manual install (no `curl | sh`)
+Build prerequisites (hard requirements — the script stops with an install hint if any is
+missing): **git**, **go ≥1.21** (it bootstraps the toolchain `go.mod` pins), **bun ≥1.3**.
+
+| env var                                          | effect                                                   |
+| ------------------------------------------------ | -------------------------------------------------------- |
+| `CAMBRIAN_HOME`                                  | install prefix (default `~/.cambrian`)                   |
+| `CAMBRIAN_SRC`                                   | checkout dir (default `$CAMBRIAN_HOME/src`)              |
+| `CAMBRIAN_REF`                                   | branch/tag for every repo (default: each default branch) |
+| `CAMBRIAN_CLI_REF` `CAMBRIAN_CORE_REF` `CAMBRIAN_SDK_REF` | per-repo ref override                           |
+| `CAMBRIAN_FORCE=1`                               | rebuild even when the checkouts did not move             |
+| `CAMBRIAN_SKIP_INIT=1`                           | install only, skip the `cambrian init` handoff           |
+
+A checkout with uncommitted changes **aborts** the install rather than being reset — the script
+never discards work in `~/.cambrian/src`.
+
+### Manual install (build it yourself)
 
 ```bash
-# Assets use x64/arm64, NOT raw uname output.
-PLATFORM="$(uname -s | tr A-Z a-z)-$(uname -m | sed -e 's/x86_64/x64/' -e 's/aarch64/arm64/')"
-# → darwin-arm64 | darwin-x64 | linux-x64 | linux-arm64  (Windows: windows-x64.exe)
+mkdir -p ~/.cambrian/src && cd ~/.cambrian/src
+git clone --depth 1 https://github.com/cambrian-sh/cli.git  cli
+git clone --depth 1 https://github.com/cambrian-sh/core.git core
 
-curl -fsSL "https://github.com/cambrian-sh/cli/releases/latest/download/cambrian-${PLATFORM}" -o cambrian
-curl -fsSL "https://github.com/cambrian-sh/core/releases/latest/download/cambrian-orchestrator-${PLATFORM}" -o cambrian-orchestrator
+# kernel (pure Go, no cgo)
+(cd core && CGO_ENABLED=0 go build -trimpath \
+   -ldflags "-s -w -X main.version=$(git -C core describe --tags --always)" \
+   -o ~/.cambrian/bin/cambrian-orchestrator ./cmd/orchestrator)
 
-# Verify each binary against its repo's SHA256SUMS
-curl -fsSL "https://github.com/cambrian-sh/cli/releases/latest/download/SHA256SUMS"  | grep "$PLATFORM"
-curl -fsSL "https://github.com/cambrian-sh/core/releases/latest/download/SHA256SUMS" | grep "$PLATFORM"
-shasum -a 256 cambrian cambrian-orchestrator   # must match
-
-mkdir -p ~/.cambrian/bin && mv cambrian cambrian-orchestrator ~/.cambrian/bin/
+# CLI (bun single-file executable)
+(cd cli && bun install && bun run scripts/embed-proto.ts && bun run build:bin)
+cp cli/dist/cambrian ~/.cambrian/bin/cambrian
 chmod +x ~/.cambrian/bin/cambrian ~/.cambrian/bin/cambrian-orchestrator
+
 echo 'export PATH="$HOME/.cambrian/bin:$PATH"' >> ~/.zshrc   # or ~/.bashrc
+
+# point init at the source tree, then set up the world
+export CAMBRIAN_AGENTS_DIR=~/.cambrian/src/core/agents
+export CAMBRIAN_COMPOSE=~/.cambrian/src/core/db/docker-compose.yml
 cambrian init
 ```
 
